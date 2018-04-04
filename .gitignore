@@ -1,0 +1,5 @@
+bin
+lib
+*.sh
+build
+.vscode 

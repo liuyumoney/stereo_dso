@@ -36,6 +36,7 @@
 
 
 #include <boost/thread.hpp>
+#include <chrono>
 #include "util/settings.h"
 #include "util/globalFuncs.h"
 #include "util/DatasetReader.h"
@@ -59,6 +60,8 @@ std::string vignette = "";
 std::string gammaCalib = "";
 std::string source = "";
 std::string calib = "";
+std::string outputDir = "";
+std::string strSeq = "";
 double rescale = 1;
 bool reverse = false;
 bool disableROS = false;
@@ -66,7 +69,7 @@ int start=0;
 int end=100000;
 bool prefetch = false;
 float playbackSpeed=0;	// 0 for linearize (play as fast as possible, while sequentializing tracking & mapping). otherwise, factor on timestamps.
-bool preload=false;
+bool preload=true;	// false
 bool useSampleOutput=false;
 
 
@@ -97,15 +100,15 @@ void exitThread()
 
 void settingsDefault(int preset)
 {
-	printf("\n=============== PRESET Settings: ===============\n");
+	// printf("\n=============== PRESET Settings: ===============\n");
 	if(preset == 0 || preset == 1)
 	{
-		printf("DEFAULT settings:\n"
-				"- %s real-time enforcing\n"
-				"- 2000 active points\n"
-				"- 5-7 active frames\n"
-				"- 1-6 LM iteration each KF\n"
-				"- original image resolution\n", preset==0 ? "no " : "1x");
+		// printf("DEFAULT settings:\n"
+		// 		"- %s real-time enforcing\n"
+		// 		"- 2000 active points\n"
+		// 		"- 5-7 active frames\n"
+		// 		"- 1-6 LM iteration each KF\n"
+		// 		"- original image resolution\n", preset==0 ? "no " : "1x");
 
 		playbackSpeed = (preset==0 ? 0 : 1);
 		preload = preset==1;
@@ -270,6 +273,13 @@ void parseArgument(char* arg)
 	{
 		source = buf;
 		printf("loading data from %s!\n", source.c_str());
+		strSeq = source.substr(source.size() - 2, 2);
+		return;
+	}
+
+	if (1 == sscanf(arg, "output_dir=%s", buf)) {
+		outputDir = buf;
+		printf("output dir is %s!\n", outputDir.c_str());
 		return;
 	}
 
@@ -453,9 +463,15 @@ int main( int argc, char** argv )
         clock_t started = clock();
         double sInitializerOffset=0;
 
-
+		const std::string timeFile = outputDir + "DSO-stereo-KITTI-time_" + strSeq + ".txt";
+		FILE* fp = fopen(timeFile.c_str(), "w");
+		if (fp == NULL) {
+			printf("open file %s failed!\n", timeFile.c_str());
+			exit(-1);
+		}
         for(int ii=0; ii<(int)idsToPlay.size(); ii++)
         {
+			auto timeBegin = std::chrono::steady_clock::now();
             if(!fullSystem->initialized)	// if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
@@ -543,21 +559,20 @@ int main( int argc, char** argv )
 
             if(fullSystem->isLost)
             {
-                    printf("LOST!!\n");
-                    break;
+                printf("LOST!!\n");
+                break;
             }
 
+			auto timeEnd = std::chrono::steady_clock::now();
+			std::chrono::duration<double> duration = timeEnd - timeBegin;
+			fprintf(fp, "%lf\n", duration.count());
         }
-
+		fclose(fp);
 
         fullSystem->blockUntilMappingIsFinished();
         clock_t ended = clock();
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
-
-
-        fullSystem->printResult("/home/jiatianwu/project/sdso/result.txt");
-
 
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
@@ -586,6 +601,14 @@ int main( int argc, char** argv )
             tmlog.close();
         }
 
+		const std::string poseFile = outputDir + "DSO-stereo-KITTI_" + strSeq + ".txt";
+        fullSystem->printResult(poseFile.c_str());
+		const std::string statFile = outputDir + "DSO-stereo-KITTI-stat_" + strSeq + ".txt";
+		fp = fopen(statFile.c_str(), "w");
+		const int numKeyFrames = fullSystem->GetKeyFramesNumber();
+		fprintf(fp, "KeyFrame ratio: %d / %d = %lf\n", numKeyFrames, reader->getNumImages(), numKeyFrames * 1.0 / reader->getNumImages());
+		printf("KeyFrame ratio: %d / %d = %lf\n", numKeyFrames, reader->getNumImages(), numKeyFrames * 1.0 / reader->getNumImages());
+		fclose(fp);
     });
 
 
@@ -600,12 +623,12 @@ int main( int argc, char** argv )
 		delete ow;
 	}
 
-	printf("DELETE FULLSYSTEM!\n");
+	// printf("DELETE FULLSYSTEM!\n");
 	delete fullSystem;
 
-	printf("DELETE READER!\n");
+	// printf("DELETE READER!\n");
 	delete reader;
 
-	printf("EXIT NOW!\n");
+	// printf("EXIT NOW!\n");
 	return 0;
 }

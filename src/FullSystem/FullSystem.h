@@ -166,6 +166,7 @@ public:
 	void setGammaFunction(float* BInv);
 	void setOriginalCalib(VecXf originalCalib, int originalW, int originalH);
 
+	int GetKeyFramesNumber() { return allKeyFramesHistory.size(); }
 private:
 
 	CalibHessian Hcalib;
