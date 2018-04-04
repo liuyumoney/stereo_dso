@@ -470,8 +470,7 @@ int main( int argc, char** argv )
 			exit(-1);
 		}
         for(int ii=0; ii<(int)idsToPlay.size(); ii++)
-        {
-			auto timeBegin = std::chrono::steady_clock::now();
+        {			
             if(!fullSystem->initialized)	// if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
@@ -512,7 +511,7 @@ int main( int argc, char** argv )
             bool MODE_SLAM = true;
             // if MODE_STEREOMATCH is true, it does stereo matching and output idepth image.
             bool MODE_STEREOMATCH = false;
-
+			auto timeBegin = std::chrono::steady_clock::now();
             if(MODE_SLAM)
             {
                 if(!skipFrame) fullSystem->addActiveFrame(img_left, img_right, i);
